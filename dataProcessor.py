@@ -86,7 +86,7 @@ def augmentDataset(faces_data, pickle_path):
 	#storing the augmented data to avoid repeating this process over and over again
 	#pickle.dump(aug_dataset, open(pickle_path, "wb")) 
 	np.savez("augData", data=aug_dataset)
-	print("\nData pickled!")
+	print("\nData store created!")
 	return aug_dataset
 
 '''prepares the data to be in a form that can used for training the DNN model -
@@ -103,9 +103,19 @@ def prepareData(faces_data):
 	print("Colorspace conversion complete!")
 
 	#separate the data into features and labels
-	
+	features = lab_data[:, :, :, 0:1]
+	labels = lab_data[:, :, :, 1:]
+	pdb.set_trace()
+
 	#normalizing the features
-	
+	for i in range(num_images):
+		feature_max = np.amax(features[i])
+		feature_min = np.amin(features[i])
+		feature_range = feature_max - feature_min
+
+		features[i] = (features[i] - feature_min) / feature_range
+
+	return {"features" : features, "labels": labels} 
 
 if __name__ == "__main__":
 	faces_dir = "lfw"
@@ -136,19 +146,21 @@ if __name__ == "__main__":
 	#check if pickle for augmented data exists
 	pickle_path = join(os.getcwd(), "augData.npz")
 	if isfile(pickle_path):
+		print("\nLoading data store..")
 		dataset = np.load("augData.npz")["data"]
+		print("Data store loaded!")
 
 	#no pickle exists, so proceed to make the pickle
 	else:
-		print("\nNo previously stored data found. Preparing pickle...")
+		print("\nNo previously stored data found. Preparing data store...")
 	
-	#load the data into numpy arrays
-	data_dir_path = join(os.getcwd(), data_dir)
-	dataset = loadDataset(data_dir_path)
+		#load the data into numpy arrays
+		data_dir_path = join(os.getcwd(), data_dir)
+		dataset = loadDataset(data_dir_path)
 
-	#augment the dataset by a factor of 6
-	dataset = augmentDataset(dataset, pickle_path)
+		#augment the dataset by a factor of 6
+		dataset = augmentDataset(dataset, pickle_path)
 
-	dataset = prepareData(dataset)
+	final_dataset = prepareData(dataset)
 
 
