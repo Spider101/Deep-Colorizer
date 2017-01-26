@@ -18,7 +18,7 @@ from skimage.io import imread
 from skimage.transform import rotate, resize
 from skimage.color import rgb2lab
 import numpy as np
-import dill
+import pickle
 import pdb
 
 '''the images of interested are nested within two levels in the 'lfw' directory.
@@ -84,8 +84,9 @@ def augmentDataset(faces_data, pickle_path):
 	print("Data Augmentation Complete!")
 
 	#storing the augmented data to avoid repeating this process over and over again
-	#pickle.dump(aug_dataset, open(pickle_path, "wb"), pickle.HIGHEST_PROTOCOL) 
-	#print("\nData pickled!")
+	#pickle.dump(aug_dataset, open(pickle_path, "wb")) 
+	np.savez("augData", data=aug_dataset)
+	print("\nData pickled!")
 	return aug_dataset
 
 '''prepares the data to be in a form that can used for training the DNN model -
@@ -100,6 +101,11 @@ def prepareData(faces_data):
 	for i in range(num_images):
 		lab_data[i, :, :, :] = rgb2lab(faces_data[i, :, :, :])
 	print("Colorspace conversion complete!")
+
+	#separate the data into features and labels
+	
+	#normalizing the features
+	
 
 if __name__ == "__main__":
 	faces_dir = "lfw"
@@ -128,14 +134,14 @@ if __name__ == "__main__":
 		extractImages(faces_dir, data_dir)
 
 	#check if pickle for augmented data exists
-	pickle_path = join(os.getcwd(), data_dir, "augData.p")
-	'''if isfile(pickle_path):
-		dataset = pickle.load(open(pickle_path, "rb"))
+	pickle_path = join(os.getcwd(), "augData.npz")
+	if isfile(pickle_path):
+		dataset = np.load("augData.npz")["data"]
 
 	#no pickle exists, so proceed to make the pickle
 	else:
 		print("\nNo previously stored data found. Preparing pickle...")
-		'''
+	
 	#load the data into numpy arrays
 	data_dir_path = join(os.getcwd(), data_dir)
 	dataset = loadDataset(data_dir_path)
@@ -143,6 +149,6 @@ if __name__ == "__main__":
 	#augment the dataset by a factor of 6
 	dataset = augmentDataset(dataset, pickle_path)
 
-	#dataset = prepareData(dataset)
+	dataset = prepareData(dataset)
 
 
