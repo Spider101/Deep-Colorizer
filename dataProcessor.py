@@ -10,7 +10,7 @@
 
 import os
 from os import listdir
-from os.path import isfile, join, isdir, isfile
+from os.path import isfile, join, isdir
 import shutil
 import urllib.request
 import tarfile
@@ -29,6 +29,7 @@ def extractImages(faces_dir, data_dir):
 	#initialize the relevant path variables
 	faces_dir_path = join(os.getcwd(), faces_dir)
 	data_dir_path = join(os.getcwd(), data_dir)
+	image_dir_path = join(data_dir_path, "images")
 	sub_dirs = [sub_dir for sub_dir in listdir(faces_dir_path)]
 
 	#remove the data directory if it exists to maintain consistency
@@ -36,6 +37,7 @@ def extractImages(faces_dir, data_dir):
 		shutil.rmtree(data_dir_path)
 	
 	os.mkdir(data_dir_path)
+	os.mkdir(image_dir_path)
 	
 	#cycle through the sub-directories in the Labelled Faces in the Wild
 	#directory and extract the images out to the 'data' directory
@@ -44,11 +46,11 @@ def extractImages(faces_dir, data_dir):
 		sub_dir_path = join(faces_dir_path, sub_dir)
 		images = listdir(sub_dir_path)
 		for image in images:
-		    shutil.copy(join(sub_dir_path, image), data_dir_path)
+		    shutil.copy(join(sub_dir_path, image), image_dir_path)
 
 	#dispose of the original dataset to avoid redundancy
 	shutil.rmtree(faces_dir_path)
-	print("\nData directory has been setup. Original directory removed!")
+	print("Data directory has been setup. Original directory removed!")
 
 '''load the images in the 'data' directory into numpy arrays for ease of 
 computation and manipulation'''
@@ -67,7 +69,7 @@ def loadDataset(data_dir_path):
 rotations and random crops. Since the task at hand is estimating the color of 
 grayscale images, manipulation of contrast or saturation of the color channels
 is avoided.'''
-def augmentDataset(faces_data, pickle_path):
+def augmentDataset(faces_data):
 	num_images, width, height, num_channels = faces_data.shape[0], faces_data.shape[1], faces_data.shape[2], faces_data.shape[3]
 	#pdb.set_trace()
 	aug_dataset = np.zeros((6*num_images, width, height, num_channels))
@@ -83,10 +85,6 @@ def augmentDataset(faces_data, pickle_path):
 		#aug_dataset[6*i + 7, :, :, :] = faces_data[i, :, :, :]
 	print("Data Augmentation Complete!")
 
-	#storing the augmented data to avoid repeating this process over and over again
-	#pickle.dump(aug_dataset, open(pickle_path, "wb")) 
-	np.savez("augData", data=aug_dataset)
-	print("\nData store created!")
 	return aug_dataset
 
 '''prepares the data to be in a form that can used for training the DNN model -
@@ -105,15 +103,16 @@ def prepareData(faces_data):
 	#separate the data into features and labels
 	features = lab_data[:, :, :, 0:1]
 	labels = lab_data[:, :, :, 1:]
-	pdb.set_trace()
-
+	
 	#normalizing the features
+	print("\nNormalizing the data features to be in [0,1] range...")
 	for i in range(num_images):
 		feature_max = np.amax(features[i])
 		feature_min = np.amin(features[i])
 		feature_range = feature_max - feature_min
 
 		features[i] = (features[i] - feature_min) / feature_range
+	print("Feature normalization complete!")
 
 	return {"features" : features, "labels": labels} 
 
@@ -143,24 +142,40 @@ if __name__ == "__main__":
 		#move the images from the lfw directory to the data directory
 		extractImages(faces_dir, data_dir)
 
-	#check if pickle for augmented data exists
-	pickle_path = join(os.getcwd(), "augData.npz")
-	if isfile(pickle_path):
-		print("\nLoading data store..")
-		dataset = np.load("augData.npz")["data"]
-		print("Data store loaded!")
-
-	#no pickle exists, so proceed to make the pickle
-	else:
-		print("\nNo previously stored data found. Preparing data store...")
 	
-		#load the data into numpy arrays
-		data_dir_path = join(os.getcwd(), data_dir)
-		dataset = loadDataset(data_dir_path)
+	features_path = join(os.getcwd(), data_dir, "features.npz")
+	labels_path = join(os.getcwd(), data_dir, "labels.npz")
+	#check if data store for final dataset exists	
+	if isfile(features_path) and isfile(labels_path):
+		print("\nData Store required for training model exists. Go ahead and use it!")
 
-		#augment the dataset by a factor of 6
-		dataset = augmentDataset(dataset, pickle_path)
+	#data store for final dataset does not exist, proceed to create one
+	else:
+		#check if data store for augmented data exists
+		aug_data_path = join(os.getcwd(), data_dir, "augData.npz")
+		if isfile(aug_data_path):
+			print("\nLoading data store for the augmented dataset..")
+			dataset = np.load(aug_data_path)["data"]
+			print("Data store for the augmented dataset loaded!")
 
-	final_dataset = prepareData(dataset)
+		#no data store for the augmented dataset exists, so proceed to make it
+		else:
+			print("\nNo previously stored data found. Preparing data store...")
+		
+			#load the data into numpy arrays
+			data_dir_path = join(os.getcwd(), data_dir, "images")
+			dataset = loadDataset(data_dir_path)
 
+			#augment the dataset by a factor of 6
+			dataset = augmentDataset(dataset)
+			
+			#storing the augmented data to avoid repeating this process over and over again
+			np.savez(aug_data_path, data=dataset)
+			print("\nData store for augmented dataset created!")
+		
+		print("\nFinal data store being prepared...")
+		final_dataset = prepareData(dataset)
+		np.savez(features_path, features=final_dataset["features"])
+		np.savez(labels_path, labels=final_dataset["labels"])
+		print("\nData store for final dataset created!")
 
