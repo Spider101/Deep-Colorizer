@@ -12,11 +12,16 @@ import os
 from os import listdir
 from os.path import isfile, join, isdir
 import numpy as np
-import pickle
 import pdb
+
+import torch
+import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader
+from torch.autograd import Variable
 
 class ColorizerNet(nn.Module):
 
@@ -35,7 +40,65 @@ class ColorizerNet(nn.Module):
 		x = F.relu(self.layer4(x))
 		return x
 
+def trainNet(model, data_loader, criterion, num_epochs):
+
+	print("\nStarting to train model. Please wait..")
+	for epoch in range(num_epochs): # loop over the dataset multiple times
+    
+	    running_loss = 0.0
+	    for i, data in enumerate(data_loader, 0):
+	        # get the inputs
+	        inputs, labels = data
+	        
+	        # wrap them in Variable
+	        inputs, labels = Variable(inputs), Variable(labels)
+	        
+	        # zero the parameter gradients
+	        optimizer.zero_grad()
+	        
+	        # forward + backward + optimize
+	        outputs = model(inputs)
+	        loss = criterion(outputs, labels)
+	        loss.backward()        
+	        optimizer.step()
+	        
+	        # print statistics
+	        running_loss += loss.data[0]
+	        if i % 2000 == 0: # print every 2000 mini-batches
+	            print('[%d, %5d] loss: %.3f' % (epoch+1, i+1, running_loss / 2000))
+	            running_loss = 0.0
+
+	print('Finished Training')
+
 if __name__ == '__main__':
 	
+	#relevant path names
+	feature_path = join(os.getcwd(), "data", "features.npz")
+	label_path = join(os.getcwd(), "data", "labels.npz")
+
+	#load the features and labels as tensors
+	print("\nLoading the features set.Please wait ..")
+	features = torch.from_numpy(np.load(feature_path)["features"])
+
+	print("\nLoading the  corresponding labels. Please wait ..")
+	labels = torch.from_numpy(np.load(label_path)["labels"])
+
+	#pdb.set_trace()
+	#split data into train and test set and create data loaders for each
+	trainset_prop = int(0.7*features.size()[0])
+	trainset = TensorDataset(features[:trainset_prop], labels[:trainset_prop])
+	testset = TensorDataset(features[trainset_prop:], labels[trainset_prop:])
+
+	trainset_loader = DataLoader(trainset, batch_size=128, shuffle=False, num_workers=2)
+	testset_loader = DataLoader(testset, batch_size=128, shuffle=False, num_workers=2)	
+
+	#setup model, optimizer and criterion
 	colorizerNet = ColorizerNet()
+	criterion = nn.MSELoss() # use a Classification Cross-Entropy loss
+	optimizer = optim.SGD(colorizerNet.parameters(), lr=0.001, momentum=0.9)
 	print(colorizerNet)
+
+	trainNet(colorizerNet, trainset_loader, criterion, 5)
+	
+	
+	
