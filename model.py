@@ -29,8 +29,8 @@ class ColorizerNet(nn.Module):
 		super(ColorizerNet, self).__init__()
 		self.layer1 = nn.Conv2d(1, 8, 2, 2)
 		self.layer2 = nn.Conv2d(8, 16, 2, 2)
-		self.layer3 = nn.Conv2d(16, 8, 2, 2)
-		self.layer4 = nn.Conv2d(8, 1, 2, 2)
+		self.layer3 = nn.ConvTranspose2d(16, 8, 2, 2)
+		self.layer4 = nn.ConvTranspose2d(8, 2, 2, 2)
 
 
 	def forward(self, x):
@@ -50,6 +50,10 @@ def trainNet(model, data_loader, criterion, num_epochs):
 	        # get the inputs
 	        inputs, labels = data
 	        
+	        #convert the data to floats for ease of use on GPU
+	        inputs = inputs.float()
+	        labels = labels.float()
+	        
 	        # wrap them in Variable
 	        inputs, labels = Variable(inputs), Variable(labels)
 	        
@@ -57,7 +61,9 @@ def trainNet(model, data_loader, criterion, num_epochs):
 	        optimizer.zero_grad()
 	        
 	        # forward + backward + optimize
+	        
 	        outputs = model(inputs)
+	        #pdb.set_trace()
 	        loss = criterion(outputs, labels)
 	        loss.backward()        
 	        optimizer.step()
@@ -76,14 +82,19 @@ if __name__ == '__main__':
 	feature_path = join(os.getcwd(), "data", "features.npz")
 	label_path = join(os.getcwd(), "data", "labels.npz")
 
-	#load the features and labels as tensors
+	#load the features and labels as tensors with appropriate shape for torch
 	print("\nLoading the features set.Please wait ..")
-	features = torch.from_numpy(np.load(feature_path)["features"])
+	features = np.load(feature_path)["features"]
+	features = np.rollaxis(features, 3, 1)
+	features = torch.from_numpy(features)
 
 	print("\nLoading the  corresponding labels. Please wait ..")
-	labels = torch.from_numpy(np.load(label_path)["labels"])
-
+	labels = np.load(label_path)["labels"]
+	labels = np.rollaxis(labels, 3, 1)
+	labels = torch.from_numpy(labels)
+	
 	#pdb.set_trace()
+
 	#split data into train and test set and create data loaders for each
 	trainset_prop = int(0.7*features.size()[0])
 	trainset = TensorDataset(features[:trainset_prop], labels[:trainset_prop])
